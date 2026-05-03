@@ -1,14 +1,16 @@
 const TelegramBot = require('node-telegram-bot-api');
-const { token } = require('./config/bot');
 
-// handlers import
-const startHandler = require('./handlers/start');
-const callbackHandler = require('./handlers/callback');
+const token = process.env.BOT_TOKEN;
+
+if (!token) {
+  console.log("BOT_TOKEN missing");
+  process.exit(1);
+}
 
 const bot = new TelegramBot(token, { polling: true });
 
-// load handlers
-startHandler(bot);
-callbackHandler(bot);
+bot.onText(/\/start/, (msg) => {
+  bot.sendMessage(msg.chat.id, "Bot is working now 🚀");
+});
 
-console.log("🤖 Bot is running...");
+console.log("Bot started");
