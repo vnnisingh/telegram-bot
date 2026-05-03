@@ -1,57 +1,110 @@
 const TelegramBot = require('node-telegram-bot-api');
 const { TOKEN } = require('./config');
-const buttons = require('./buttons');
 const data = require('./data');
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 let userState = {};
 
-function sendKeyboard(chatId, text, btns) {
-  bot.sendMessage(chatId, text, {
-    reply_markup: {
-      keyboard: btns,
-      resize_keyboard: true
-    }
-  });
-}
-
 // START
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-
   userState[chatId] = {};
 
   bot.sendMessage(chatId,
 `Hello Students,
-Welcome to PM College of Excellence Bot.
+Welcome to PM College Bot.
 
-This is not an official bot.
-Please select your stream:`);
-
-  sendKeyboard(chatId, "Choose:", buttons.streamButtons);
+Please select your stream:`,
+  {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "BA", callback_data: "BA" },
+          { text: "BSC", callback_data: "BSC" }
+        ],
+        [
+          { text: "BCOM", callback_data: "BCOM" },
+          { text: "MSC", callback_data: "MSC" }
+        ],
+        [
+          { text: "MA", callback_data: "MA" },
+          { text: "MCOM", callback_data: "MCOM" }
+        ]
+      ]
+    }
+  });
 });
 
-// FLOW
-bot.on("message", (msg) => {
-  const chatId = msg.chat.id;
-  const text = msg.text;
+// BUTTON CLICK HANDLE
+bot.on("callback_query", (query) => {
+  const chatId = query.message.chat.id;
+  const messageId = query.message.message_id;
+  const text = query.data;
 
-  if (!userState[chatId]) return;
-
+  if (!userState[chatId]) userState[chatId] = {};
   const state = userState[chatId];
 
-  if (!state.stream && buttons.streamButtons.flat().includes(text)) {
+  // BACK
+  if (text === "back") {
+    userState[chatId] = {};
+    return bot.editMessageText("Select Stream:", {
+      chat_id: chatId,
+      message_id: messageId,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "BA", callback_data: "BA" },
+            { text: "BSC", callback_data: "BSC" }
+          ],
+          [
+            { text: "BCOM", callback_data: "BCOM" },
+            { text: "MSC", callback_data: "MSC" }
+          ]
+        ]
+      }
+    });
+  }
+
+  // STREAM
+  if (!state.stream) {
     state.stream = text;
-    return sendKeyboard(chatId, "Select Year:", buttons.yearButtons);
+
+    return bot.editMessageText("Select Year:", {
+      chat_id: chatId,
+      message_id: messageId,
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "First Year", callback_data: "First Year" }],
+          [{ text: "Second Year", callback_data: "Second Year" }],
+          [{ text: "Third Year", callback_data: "Third Year" }],
+          [{ text: "Final Year", callback_data: "Final Year" }],
+          [{ text: "⬅️ Back", callback_data: "back" }]
+        ]
+      }
+    });
   }
 
-  if (!state.year && buttons.yearButtons.flat().includes(text)) {
+  // YEAR
+  else if (!state.year) {
     state.year = text;
-    return sendKeyboard(chatId, "Select Category:", buttons.categoryButtons);
+
+    return bot.editMessageText("Select Category:", {
+      chat_id: chatId,
+      message_id: messageId,
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "Foundation", callback_data: "Foundation" }],
+          [{ text: "Major", callback_data: "Major" }],
+          [{ text: "Minor", callback_data: "Minor" }],
+          [{ text: "⬅️ Back", callback_data: "back" }]
+        ]
+      }
+    });
   }
 
-  if (!state.category && buttons.categoryButtons.flat().includes(text)) {
+  // CATEGORY
+  else if (!state.category) {
     state.category = text;
 
     const subjects = data
@@ -62,20 +115,45 @@ bot.on("message", (msg) => {
       )
       .map(d => d.subject);
 
-    return sendKeyboard(chatId, "Select Subject:", subjects.map(s => [s]));
+    if (!subjects.length) {
+      return bot.editMessageText("Data not available ❌", {
+        chat_id: chatId,
+        message_id: messageId
+      });
+    }
+
+    return bot.editMessageText("Select Subject:", {
+      chat_id: chatId,
+      message_id: messageId,
+      reply_markup: {
+        inline_keyboard: [
+          ...subjects.map(s => [{ text: s, callback_data: s }]),
+          [{ text: "⬅️ Back", callback_data: "back" }]
+        ]
+      }
+    });
   }
 
-  const result = data.find(d =>
-    d.stream === state.stream &&
-    d.year === state.year &&
-    d.category === state.category &&
-    d.subject === text
-  );
+  // SUBJECT FINAL
+  else {
+    const result = data.find(d =>
+      d.stream === state.stream &&
+      d.year === state.year &&
+      d.category === state.category &&
+      d.subject === text
+    );
 
-  if (result) {
-    bot.sendMessage(chatId,
-`Subject: ${result.subject}
-Date: ${result.date}
-Time: ${result.time}`);
+    if (result) {
+      return bot.editMessageText(
+`📚 Subject: ${result.subject}
+
+📅 Date: ${result.date}
+⏰ Time: ${result.time}`,
+        {
+          chat_id: chatId,
+          message_id: messageId
+        }
+      );
+    }
   }
 });
